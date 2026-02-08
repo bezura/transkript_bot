@@ -11,6 +11,7 @@ from .routers import admin, chat_admin, common, media
 from .services.system_info import format_startup_info, get_system_info
 from .storage.db import Storage, init_db
 from .transcription.backend import choose_backend
+from .worker import worker_loop
 
 
 async def create_app() -> tuple[Bot, Dispatcher]:
@@ -50,7 +51,9 @@ async def create_app() -> tuple[Bot, Dispatcher]:
                 await bot.send_message(admin_id, format_startup_info(system_info))
             except Exception:
                 continue
-        dispatcher["worker_task"] = None
+        dispatcher["worker_task"] = asyncio.create_task(
+            worker_loop(queue, bot, settings, storage, state, backend)
+        )
         dispatcher["idle_task"] = None
 
     async def on_shutdown(dispatcher: Dispatcher, **_: Any) -> None:
