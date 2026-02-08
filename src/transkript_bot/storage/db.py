@@ -117,6 +117,25 @@ class Storage:
             await db.execute(sql, values)
             await db.commit()
 
+    async def create_request(
+        self,
+        *,
+        kind: str,
+        user_id: int | None,
+        chat_id: int | None,
+        requested_by_id: int,
+    ) -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """
+                INSERT INTO requests (kind, status, user_id, chat_id, requested_by_id)
+                VALUES (?, 'pending', ?, ?, ?)
+                """,
+                (kind, user_id, chat_id, requested_by_id),
+            )
+            await db.commit()
+            return int(cursor.lastrowid)
+
     async def create_job(
         self,
         *,

@@ -37,3 +37,19 @@ CREATE TABLE IF NOT EXISTS jobs (
     error TEXT,
     output_paths TEXT
 );
+
+CREATE TABLE IF NOT EXISTS requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    user_id INTEGER,
+    chat_id INTEGER,
+    requested_by_id INTEGER,
+    reason TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_requests_kind_status ON requests(kind, status);
+CREATE INDEX IF NOT EXISTS idx_requests_user_id ON requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_requests_chat_id ON requests(chat_id);
