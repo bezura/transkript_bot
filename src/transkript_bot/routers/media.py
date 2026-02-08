@@ -61,7 +61,7 @@ async def handle_media(
     settings: Settings,
     storage: Storage,
     queue,
-    state: dict,
+    app_state: dict,
 ) -> None:
     media = _extract_media(message)
     if not media:
@@ -130,4 +130,4 @@ async def handle_media(
         }
     )
 
-    state["last_activity"] = time.time()
+    app_state["last_activity"] = time.time()

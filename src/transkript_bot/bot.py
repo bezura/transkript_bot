@@ -23,7 +23,7 @@ async def create_app() -> tuple[Bot, Dispatcher]:
     await init_db(settings.storage_path)
     storage = Storage(settings.storage_path)
     queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-    state: dict[str, Any] = {
+    app_state: dict[str, Any] = {
         "admin_mode": set(),
         "last_activity": time.time(),
     }
@@ -37,7 +37,7 @@ async def create_app() -> tuple[Bot, Dispatcher]:
     dp["settings"] = settings
     dp["storage"] = storage
     dp["queue"] = queue
-    dp["state"] = state
+    dp["app_state"] = app_state
     dp["system_info"] = system_info
     dp["backend"] = backend
 
@@ -53,10 +53,10 @@ async def create_app() -> tuple[Bot, Dispatcher]:
             except Exception:
                 continue
         dispatcher["worker_task"] = asyncio.create_task(
-            worker_loop(queue, bot, settings, storage, state, backend)
+            worker_loop(queue, bot, settings, storage, app_state, backend)
         )
         dispatcher["idle_task"] = asyncio.create_task(
-            idle_shutdown_loop(queue, state, settings.idle_shutdown_minutes * 60)
+            idle_shutdown_loop(queue, app_state, settings.idle_shutdown_minutes * 60)
         )
 
     async def on_shutdown(dispatcher: Dispatcher, **_: Any) -> None:
