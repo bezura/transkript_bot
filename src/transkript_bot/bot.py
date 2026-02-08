@@ -9,6 +9,7 @@ from aiogram import Bot, Dispatcher
 from .config import Settings
 from .routers import admin, chat_admin, common, media
 from .services.idle_shutdown import idle_shutdown_loop
+from .services.commands import build_command_scopes
 from .services.system_info import format_startup_info, get_system_info
 from .storage.db import Storage, init_db
 from .transcription.backend import choose_backend
@@ -47,6 +48,8 @@ async def create_app() -> tuple[Bot, Dispatcher]:
     dp.include_router(media.router)
 
     async def on_startup(bot: Bot, dispatcher: Dispatcher, **_: Any) -> None:
+        for _, (scope, commands) in build_command_scopes(root_admin_ids=settings.root_admin_ids).items():
+            await bot.set_my_commands(commands, scope=scope)
         for admin_id in settings.root_admin_ids:
             try:
                 await bot.send_message(admin_id, format_startup_info(system_info))
