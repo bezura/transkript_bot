@@ -6,7 +6,9 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.types.chat_member_administrator import ChatMemberAdministrator
 from aiogram.types.chat_member_owner import ChatMemberOwner
 
+from ..config import Settings
 from ..services.keyboard import build_chat_settings_keyboard
+from ..services.notifications import notify_root_admins_request
 from ..storage.db import Storage
 
 router = Router()
@@ -30,13 +32,17 @@ async def _is_query_admin(query: CallbackQuery) -> bool:
     return _is_admin_member(member)
 
 
-async def create_chat_request(storage: Storage, chat_id: int, requested_by_id: int) -> int:
-    return await storage.create_request(
+async def create_chat_request(storage: Storage, chat_id: int, requested_by_id: int) -> tuple[int, bool]:
+    existing = await storage.get_pending_request(kind="chat", user_id=None, chat_id=chat_id)
+    if existing:
+        return int(existing["id"]), False
+    request_id = await storage.create_request(
         kind="chat",
         user_id=None,
         chat_id=chat_id,
         requested_by_id=requested_by_id,
     )
+    return request_id, True
 
 
 async def _reply_private(message: Message, text: str) -> None:
@@ -165,7 +171,7 @@ async def toggle_reply(query: CallbackQuery, storage: Storage) -> None:
 
 
 @router.callback_query(F.data == "menu:request_chat")
-async def request_chat_access(query: CallbackQuery, storage: Storage) -> None:
+async def request_chat_access(query: CallbackQuery, storage: Storage, settings: Settings) -> None:
     if not query.message or not query.from_user:
         await query.answer("Invalid request", show_alert=True)
         return
@@ -180,5 +186,14 @@ async def request_chat_access(query: CallbackQuery, storage: Storage) -> None:
         title=query.message.chat.title,
         type_=query.message.chat.type,
     )
-    await create_chat_request(storage, query.message.chat.id, query.from_user.id)
-    await query.answer("Chat access request sent")
+    request_id, created = await create_chat_request(storage, query.message.chat.id, query.from_user.id)
+    if created:
+        await notify_root_admins_request(
+            query.bot,
+            settings,
+            kind="chat",
+            request_id=request_id,
+            target_id=query.message.chat.id,
+            title=query.message.chat.title,
+        )
+    await query.answer("Chat access request sent" if created else "Request already pending")

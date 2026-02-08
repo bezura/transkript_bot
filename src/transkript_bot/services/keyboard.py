@@ -50,6 +50,14 @@ def build_request_access_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def build_request_action_keyboard(*, kind: str, request_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Approve", callback_data=f"admin:req:{kind}:approve:{request_id}")
+    builder.button(text="Deny", callback_data=f"admin:req:{kind}:deny:{request_id}")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def build_admin_menu_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="User requests", callback_data="admin:reqs:user")

@@ -173,6 +173,11 @@ async def admin_menu(query: CallbackQuery, settings: Settings, app_state: dict) 
     await query.answer()
 
 
+@router.callback_query(F.data == "menu:admin")
+async def menu_admin(query: CallbackQuery, settings: Settings, app_state: dict) -> None:
+    await admin_menu(query, settings, app_state)
+
+
 @router.callback_query(F.data.startswith("admin:reqs:"))
 async def admin_list_requests(
     query: CallbackQuery, settings: Settings, app_state: dict, storage: Storage

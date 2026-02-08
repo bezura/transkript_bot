@@ -1,6 +1,6 @@
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 from aiogram.types.chat_member_administrator import ChatMemberAdministrator
 from aiogram.types.chat_member_owner import ChatMemberOwner
 
@@ -57,3 +57,25 @@ async def menu_cmd(message: Message, settings: Settings) -> None:
 async def status_cmd(message: Message, queue) -> None:
     position = queue.qsize()
     await message.answer(f"Queue length: {position}")
+
+
+@router.callback_query(F.data == "menu:status")
+async def menu_status(query: CallbackQuery, settings: Settings, queue) -> None:
+    if not query.message:
+        return
+    role = await _resolve_role(query.message, settings)
+    text = f"Queue length: {queue.qsize()}"
+    kb = build_menu_keyboard(role=role, in_private=query.message.chat.type == "private")
+    await query.message.edit_text(text, reply_markup=kb)
+    await query.answer()
+
+
+@router.callback_query(F.data == "menu:help")
+async def menu_help(query: CallbackQuery, settings: Settings) -> None:
+    if not query.message:
+        return
+    role = await _resolve_role(query.message, settings)
+    text = build_help_text(role=role, in_private=query.message.chat.type == "private")
+    kb = build_menu_keyboard(role=role, in_private=query.message.chat.type == "private")
+    await query.message.edit_text(text, reply_markup=kb)
+    await query.answer()

@@ -12,6 +12,7 @@ from ..config import Settings
 from ..services.access import can_process
 from ..services.queue import estimate_eta
 from ..services.keyboard import build_request_access_keyboard
+from ..services.notifications import notify_root_admins_request
 from ..storage.db import Storage
 
 router = Router()
@@ -56,22 +57,34 @@ def _extract_media(message: Message) -> dict[str, Any] | None:
     return None
 
 
-async def create_user_request(storage: Storage, user_id: int) -> int:
-    return await storage.create_request(
+async def create_user_request(storage: Storage, user_id: int) -> tuple[int, bool]:
+    existing = await storage.get_pending_request(kind="user", user_id=user_id, chat_id=None)
+    if existing:
+        return int(existing["id"]), False
+    request_id = await storage.create_request(
         kind="user",
         user_id=user_id,
         chat_id=None,
         requested_by_id=user_id,
     )
+    return request_id, True
 
 
 @router.callback_query(F.data == "menu:request_user")
-async def request_user_access(query: CallbackQuery, storage: Storage) -> None:
+async def request_user_access(query: CallbackQuery, storage: Storage, settings: Settings) -> None:
     if not query.from_user:
         await query.answer("Unknown user", show_alert=True)
         return
-    await create_user_request(storage, query.from_user.id)
-    await query.answer("Access request sent")
+    request_id, created = await create_user_request(storage, query.from_user.id)
+    if created:
+        await notify_root_admins_request(
+            query.bot,
+            settings,
+            kind="user",
+            request_id=request_id,
+            target_id=query.from_user.id,
+        )
+    await query.answer("Access request sent" if created else "Request already pending")
 
 
 @router.message(F.audio | F.video | F.voice | F.document)
@@ -95,7 +108,15 @@ async def handle_media(
             await message.reply("Access denied")
             return
         if not user or not user.get("is_allowed"):
-            await create_user_request(storage, user_id)
+            request_id, created = await create_user_request(storage, user_id)
+            if created:
+                await notify_root_admins_request(
+                    message.bot,
+                    settings,
+                    kind="user",
+                    request_id=request_id,
+                    target_id=user_id,
+                )
             await message.reply(
                 "You are not allowed to use this bot",
                 reply_markup=build_request_access_keyboard(),
