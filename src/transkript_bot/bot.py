@@ -8,6 +8,7 @@ from aiogram import Bot, Dispatcher
 
 from .config import Settings
 from .routers import admin, chat_admin, common, media
+from .services.idle_shutdown import idle_shutdown_loop
 from .services.system_info import format_startup_info, get_system_info
 from .storage.db import Storage, init_db
 from .transcription.backend import choose_backend
@@ -54,7 +55,9 @@ async def create_app() -> tuple[Bot, Dispatcher]:
         dispatcher["worker_task"] = asyncio.create_task(
             worker_loop(queue, bot, settings, storage, state, backend)
         )
-        dispatcher["idle_task"] = None
+        dispatcher["idle_task"] = asyncio.create_task(
+            idle_shutdown_loop(queue, state, settings.idle_shutdown_minutes * 60)
+        )
 
     async def on_shutdown(dispatcher: Dispatcher, **_: Any) -> None:
         for key in ("worker_task", "idle_task"):
