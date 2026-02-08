@@ -14,6 +14,7 @@
 ## Требования
 - Python 3.13+
 - `ffmpeg` в системе
+- Для больших файлов: локальный Bot API server (официальный) и переменная `BOT_API_BASE_URL`
 - Для GPU/WhisperX: установлен `whisperx` CLI и доступен `nvidia-smi` (опционально)
 - Для diarization: HF токен (`HF_TOKEN`) и принятые условия моделей pyannote
 
@@ -26,6 +27,7 @@ cp .env.example .env
 
 Заполните `.env`:
 - `BOT_TOKEN` — токен Telegram бота
+- `BOT_API_BASE_URL` — URL локального Bot API server (например `http://localhost:8081`)
 - `ROOT_ADMIN_IDS` — ID root‑админов (через запятую)
 - `HF_TOKEN` — токен HuggingFace (опционально)
 - `STORAGE_PATH` — путь к SQLite (по умолчанию `./data/bot.db`)
@@ -45,6 +47,17 @@ uv run python -m transkript_bot.main
 2. Введите `BOT_TOKEN`, `HF_TOKEN`, `ROOT_ADMIN_IDS`.
 3. (Опционально) установите `whisperx` для GPU.
 4. Запустите бота.
+
+## Локальный Bot API server (для файлов > 20MB)
+Официальный Bot API сервер снимает лимит облачного `getFile` (20MB). Пример запуска:
+```bash
+telegram-bot-api --local --http-port=8081
+```
+Затем укажите:
+```
+BOT_API_BASE_URL=http://localhost:8081
+```
+При переключении с облака на локальный сервер может потребоваться `logOut` (см. документацию Telegram Bot API).
 
 ## Использование
 - В ЛС: отправьте аудио/видео — получите ответ с очередью и результатом.

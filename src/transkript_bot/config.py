@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     bot_token: str | None = None
+    bot_api_base_url: str | None = None
     root_admin_ids: list[int] = []
     hf_token: str | None = None
     storage_path: str = "./data/bot.db"

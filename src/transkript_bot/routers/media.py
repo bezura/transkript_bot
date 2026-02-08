@@ -10,6 +10,7 @@ from aiogram.types.chat_member_owner import ChatMemberOwner
 
 from ..config import Settings
 from ..services.access import can_process
+from ..services.limits import is_cloud_file_too_large
 from ..services.queue import estimate_eta
 from ..services.keyboard import build_request_access_keyboard
 from ..services.notifications import notify_root_admins_request
@@ -35,24 +36,28 @@ def _extract_media(message: Message) -> dict[str, Any] | None:
             "file_id": message.audio.file_id,
             "file_name": message.audio.file_name or "audio",
             "duration": message.audio.duration,
+            "file_size": message.audio.file_size,
         }
     if message.video:
         return {
             "file_id": message.video.file_id,
             "file_name": message.video.file_name or "video",
             "duration": message.video.duration,
+            "file_size": message.video.file_size,
         }
     if message.voice:
         return {
             "file_id": message.voice.file_id,
             "file_name": "voice.ogg",
             "duration": message.voice.duration,
+            "file_size": message.voice.file_size,
         }
     if message.document:
         return {
             "file_id": message.document.file_id,
             "file_name": message.document.file_name or "document",
             "duration": None,
+            "file_size": message.document.file_size,
         }
     return None
 
@@ -140,6 +145,13 @@ async def handle_media(
                 await message.reply("Please reply to the bot to start transcription")
                 return
         chat_cfg = chat
+
+    if not settings.bot_api_base_url and is_cloud_file_too_large(media.get("file_size")):
+        await message.reply(
+            "File is too large for the cloud Bot API. "
+            "Please configure BOT_API_BASE_URL to use a local Bot API server."
+        )
+        return
 
     position = queue.qsize() + 1
     durations = await storage.get_recent_durations(limit=5)

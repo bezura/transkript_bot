@@ -5,9 +5,11 @@ import time
 from typing import Any
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
 
 from .config import Settings
 from .routers import admin, chat_admin, common, media
+from .services.telegram_api import build_api_server
 from .services.idle_shutdown import idle_shutdown_loop
 from .services.commands import build_command_scopes
 from .services.system_info import format_startup_info, get_system_info
@@ -32,7 +34,9 @@ async def create_app() -> tuple[Bot, Dispatcher]:
     system_info = get_system_info()
     backend = choose_backend(force=settings.backend_force, has_gpu=system_info.get("has_gpu", False))
 
-    bot = Bot(settings.bot_token)
+    api_server = build_api_server(settings)
+    session = AiohttpSession(api=api_server)
+    bot = Bot(settings.bot_token, session=session)
     dp = Dispatcher()
 
     dp["settings"] = settings
