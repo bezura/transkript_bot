@@ -22,6 +22,10 @@ def _is_private(message: Message) -> bool:
     return message.chat.type == "private"
 
 
+def _is_admin_mode(state: dict, user_id: int) -> bool:
+    return user_id in state.get("admin_mode", set())
+
+
 async def _reply_private(message: Message, text: str) -> None:
     if _is_private(message):
         await message.answer(text)
@@ -46,8 +50,11 @@ async def admin_toggle(message: Message, settings: Settings, state: dict) -> Non
 
 
 @router.message(Command("allow"))
-async def allow_user(message: Message, settings: Settings, storage: Storage) -> None:
+async def allow_user(message: Message, settings: Settings, storage: Storage, state: dict) -> None:
     if not _is_root_admin(message.from_user.id if message.from_user else None, settings):
+        return
+    if not _is_admin_mode(state, message.from_user.id if message.from_user else 0):
+        await _reply_private(message, "Enable admin mode with /admin")
         return
     target = parse_user_id(message.text or "")
     if target is None:
@@ -59,8 +66,11 @@ async def allow_user(message: Message, settings: Settings, storage: Storage) -> 
 
 
 @router.message(Command("deny"))
-async def deny_user(message: Message, settings: Settings, storage: Storage) -> None:
+async def deny_user(message: Message, settings: Settings, storage: Storage, state: dict) -> None:
     if not _is_root_admin(message.from_user.id if message.from_user else None, settings):
+        return
+    if not _is_admin_mode(state, message.from_user.id if message.from_user else 0):
+        await _reply_private(message, "Enable admin mode with /admin")
         return
     target = parse_user_id(message.text or "")
     if target is None:
@@ -72,8 +82,11 @@ async def deny_user(message: Message, settings: Settings, storage: Storage) -> N
 
 
 @router.message(Command("stats"))
-async def stats(message: Message, settings: Settings, storage: Storage) -> None:
+async def stats(message: Message, settings: Settings, storage: Storage, state: dict) -> None:
     if not _is_root_admin(message.from_user.id if message.from_user else None, settings):
+        return
+    if not _is_admin_mode(state, message.from_user.id if message.from_user else 0):
+        await _reply_private(message, "Enable admin mode with /admin")
         return
     stats_data = await storage.get_stats()
     text = (
@@ -86,8 +99,11 @@ async def stats(message: Message, settings: Settings, storage: Storage) -> None:
 
 
 @router.message(Command("system"))
-async def system_info_cmd(message: Message, settings: Settings) -> None:
+async def system_info_cmd(message: Message, settings: Settings, state: dict) -> None:
     if not _is_root_admin(message.from_user.id if message.from_user else None, settings):
+        return
+    if not _is_admin_mode(state, message.from_user.id if message.from_user else 0):
+        await _reply_private(message, "Enable admin mode with /admin")
         return
     info = get_system_info()
     await _reply_private(message, format_startup_info(info))
