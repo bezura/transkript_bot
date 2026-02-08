@@ -117,6 +117,49 @@ class Storage:
             await db.execute(sql, values)
             await db.commit()
 
+    async def get_request(self, request_id: int) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """
+                SELECT id, kind, status, user_id, chat_id, requested_by_id, reason, created_at, updated_at
+                FROM requests
+                WHERE id = ?
+                """,
+                (request_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def get_pending_request(
+        self,
+        *,
+        kind: str,
+        user_id: int | None,
+        chat_id: int | None,
+    ) -> dict[str, Any] | None:
+        if kind == "user":
+            if user_id is None:
+                return None
+            sql = (
+                "SELECT id, kind, status, user_id, chat_id, requested_by_id, reason, created_at, updated_at "
+                "FROM requests WHERE kind = ? AND status = 'pending' AND user_id = ?"
+            )
+            params = (kind, user_id)
+        else:
+            if chat_id is None:
+                return None
+            sql = (
+                "SELECT id, kind, status, user_id, chat_id, requested_by_id, reason, created_at, updated_at "
+                "FROM requests WHERE kind = ? AND status = 'pending' AND chat_id = ?"
+            )
+            params = (kind, chat_id)
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(sql, params) as cursor:
+                row = await cursor.fetchone()
+            return dict(row) if row else None
+
     async def create_request(
         self,
         *,
@@ -125,6 +168,9 @@ class Storage:
         chat_id: int | None,
         requested_by_id: int,
     ) -> int:
+        existing = await self.get_pending_request(kind=kind, user_id=user_id, chat_id=chat_id)
+        if existing:
+            return int(existing["id"])
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute(
                 """
@@ -135,6 +181,41 @@ class Storage:
             )
             await db.commit()
             return int(cursor.lastrowid)
+
+    async def list_requests(
+        self,
+        *,
+        kind: str,
+        status: str,
+        limit: int,
+        offset: int,
+    ) -> list[dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """
+                SELECT id, kind, status, user_id, chat_id, requested_by_id, reason, created_at, updated_at
+                FROM requests
+                WHERE kind = ? AND status = ?
+                ORDER BY created_at ASC
+                LIMIT ? OFFSET ?
+                """,
+                (kind, status, limit, offset),
+            ) as cursor:
+                rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def set_request_status(self, request_id: int, *, status: str, reason: str | None = None) -> None:
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                UPDATE requests
+                SET status = ?, reason = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (status, reason, request_id),
+            )
+            await db.commit()
 
     async def create_job(
         self,
