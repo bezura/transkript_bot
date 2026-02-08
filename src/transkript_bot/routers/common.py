@@ -1,8 +1,34 @@
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
+from aiogram.types.chat_member_administrator import ChatMemberAdministrator
+from aiogram.types.chat_member_owner import ChatMemberOwner
+
+from ..config import Settings
+from ..services.keyboard import build_menu_keyboard
+from ..services.menu import MenuRole, build_help_text
 
 router = Router()
+
+
+def _is_admin_member(member) -> bool:
+    return isinstance(member, (ChatMemberAdministrator, ChatMemberOwner))
+
+
+async def _is_chat_admin(message: Message) -> bool:
+    if not message.from_user:
+        return False
+    member = await message.bot.get_chat_member(message.chat.id, message.from_user.id)
+    return _is_admin_member(member)
+
+
+async def _resolve_role(message: Message, settings: Settings) -> MenuRole:
+    user_id = message.from_user.id if message.from_user else None
+    if message.chat.type == "private" and user_id in settings.root_admin_ids:
+        return MenuRole.ROOT_ADMIN
+    if message.chat.type != "private" and await _is_chat_admin(message):
+        return MenuRole.CHAT_ADMIN
+    return MenuRole.USER
 
 
 @router.message(CommandStart())
@@ -14,13 +40,17 @@ async def start(message: Message) -> None:
 
 
 @router.message(Command("help"))
-async def help_cmd(message: Message) -> None:
-    await message.answer(
-        "Commands:\n"
-        "/status - show queue status\n"
-        "Admins: /bot_on, /bot_off, /bot_settings\n"
-        "Root admin: /allow <id>, /deny <id>, /stats, /system"
-    )
+async def help_cmd(message: Message, settings: Settings) -> None:
+    role = await _resolve_role(message, settings)
+    text = build_help_text(role=role, in_private=message.chat.type == "private")
+    await message.answer(text)
+
+
+@router.message(Command("menu"))
+async def menu_cmd(message: Message, settings: Settings) -> None:
+    role = await _resolve_role(message, settings)
+    kb = build_menu_keyboard(role=role, in_private=message.chat.type == "private")
+    await message.answer("Menu:", reply_markup=kb)
 
 
 @router.message(Command("status"))

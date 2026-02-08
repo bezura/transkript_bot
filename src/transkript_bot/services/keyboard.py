@@ -3,6 +3,8 @@ from __future__ import annotations
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from .menu import MenuRole
+
 
 def build_chat_settings_keyboard(chat: dict) -> InlineKeyboardMarkup:
     enabled = chat.get("enabled", False)
@@ -23,5 +25,19 @@ def build_chat_settings_keyboard(chat: dict) -> InlineKeyboardMarkup:
         text=f"Reply only: {'yes' if require_reply else 'no'}",
         callback_data=f"chat:toggle_reply:{chat_id}",
     )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def build_menu_keyboard(*, role: MenuRole, in_private: bool) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Status", callback_data="menu:status")
+    builder.button(text="Help", callback_data="menu:help")
+    if role == MenuRole.USER and in_private:
+        builder.button(text="Request access", callback_data="menu:request_user")
+    if role == MenuRole.CHAT_ADMIN and not in_private:
+        builder.button(text="Request chat access", callback_data="menu:request_chat")
+    if role == MenuRole.ROOT_ADMIN and in_private:
+        builder.button(text="Admin", callback_data="menu:admin")
     builder.adjust(1)
     return builder.as_markup()
