@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,18 @@ class Storage:
             )
             await db.commit()
 
+    async def set_user_blocked(self, tg_id: int, blocked: bool) -> None:
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO users (tg_id, is_blocked)
+                VALUES (?, ?)
+                ON CONFLICT(tg_id) DO UPDATE SET is_blocked = excluded.is_blocked
+                """,
+                (tg_id, int(blocked)),
+            )
+            await db.commit()
+
     async def get_user(self, tg_id: int) -> dict[str, Any] | None:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
@@ -45,6 +58,64 @@ class Storage:
             data["is_allowed"] = bool(data.get("is_allowed"))
             data["is_blocked"] = bool(data.get("is_blocked"))
             return data
+
+    async def upsert_chat(self, chat_id: int, title: str | None, type_: str | None) -> None:
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO chats (chat_id, title, type, enabled, allowed_senders, allowed_user_ids, require_reply, language)
+                VALUES (?, ?, ?, 0, 'whitelist', ?, 0, 'auto')
+                ON CONFLICT(chat_id) DO UPDATE SET title = excluded.title, type = excluded.type
+                """,
+                (chat_id, title, type_, json.dumps([])),
+            )
+            await db.commit()
+
+    async def get_chat(self, chat_id: int) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """
+                SELECT chat_id, title, type, enabled, allowed_senders, allowed_user_ids, require_reply, language
+                FROM chats WHERE chat_id = ?
+                """,
+                (chat_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            if row is None:
+                return None
+            data = dict(row)
+            data["enabled"] = bool(data.get("enabled"))
+            data["require_reply"] = bool(data.get("require_reply"))
+            raw = data.get("allowed_user_ids")
+            try:
+                data["allowed_user_ids"] = json.loads(raw) if raw else []
+            except json.JSONDecodeError:
+                data["allowed_user_ids"] = []
+            return data
+
+    async def set_chat_enabled(self, chat_id: int, enabled: bool) -> None:
+        await self._update_chat(chat_id, enabled=int(enabled))
+
+    async def set_chat_allowed_senders(self, chat_id: int, allowed_senders: str) -> None:
+        await self._update_chat(chat_id, allowed_senders=allowed_senders)
+
+    async def set_chat_require_reply(self, chat_id: int, require_reply: bool) -> None:
+        await self._update_chat(chat_id, require_reply=int(require_reply))
+
+    async def _update_chat(self, chat_id: int, **fields: Any) -> None:
+        if not fields:
+            return
+        columns = []
+        values: list[Any] = []
+        for key, value in fields.items():
+            columns.append(f"{key} = ?")
+            values.append(value)
+        values.append(chat_id)
+        sql = f"UPDATE chats SET {', '.join(columns)} WHERE chat_id = ?"
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(sql, values)
+            await db.commit()
 
     async def create_job(
         self,
@@ -122,3 +193,28 @@ class Storage:
                 continue
             durations.append(int(end - start))
         return durations
+
+    async def get_stats(self) -> dict[str, int]:
+        async with aiosqlite.connect(self.db_path) as db:
+            users_total = await self._fetch_count(db, "SELECT COUNT(*) FROM users")
+            users_allowed = await self._fetch_count(
+                db, "SELECT COUNT(*) FROM users WHERE is_allowed = 1"
+            )
+            users_blocked = await self._fetch_count(
+                db, "SELECT COUNT(*) FROM users WHERE is_blocked = 1"
+            )
+            chats_total = await self._fetch_count(db, "SELECT COUNT(*) FROM chats")
+            jobs_total = await self._fetch_count(db, "SELECT COUNT(*) FROM jobs")
+        return {
+            "users_total": users_total,
+            "users_allowed": users_allowed,
+            "users_blocked": users_blocked,
+            "chats_total": chats_total,
+            "jobs_total": jobs_total,
+        }
+
+    @staticmethod
+    async def _fetch_count(db: aiosqlite.Connection, sql: str) -> int:
+        async with db.execute(sql) as cursor:
+            row = await cursor.fetchone()
+        return int(row[0]) if row else 0
