@@ -4,13 +4,14 @@ import time
 from typing import Any
 
 from aiogram import F, Router
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 from aiogram.types.chat_member_administrator import ChatMemberAdministrator
 from aiogram.types.chat_member_owner import ChatMemberOwner
 
 from ..config import Settings
 from ..services.access import can_process
 from ..services.queue import estimate_eta
+from ..services.keyboard import build_request_access_keyboard
 from ..storage.db import Storage
 
 router = Router()
@@ -55,6 +56,24 @@ def _extract_media(message: Message) -> dict[str, Any] | None:
     return None
 
 
+async def create_user_request(storage: Storage, user_id: int) -> int:
+    return await storage.create_request(
+        kind="user",
+        user_id=user_id,
+        chat_id=None,
+        requested_by_id=user_id,
+    )
+
+
+@router.callback_query(F.data == "menu:request_user")
+async def request_user_access(query: CallbackQuery, storage: Storage) -> None:
+    if not query.from_user:
+        await query.answer("Unknown user", show_alert=True)
+        return
+    await create_user_request(storage, query.from_user.id)
+    await query.answer("Access request sent")
+
+
 @router.message(F.audio | F.video | F.voice | F.document)
 async def handle_media(
     message: Message,
@@ -70,12 +89,17 @@ async def handle_media(
     is_admin = await _is_chat_admin(message) if message.chat.type != "private" else False
 
     if message.chat.type == "private":
-        user = await storage.get_user(message.from_user.id if message.from_user else 0)
-        if not user or user.get("is_blocked"):
+        user_id = message.from_user.id if message.from_user else 0
+        user = await storage.get_user(user_id)
+        if user and user.get("is_blocked"):
             await message.reply("Access denied")
             return
-        if not user.get("is_allowed"):
-            await message.reply("You are not allowed to use this bot")
+        if not user or not user.get("is_allowed"):
+            await create_user_request(storage, user_id)
+            await message.reply(
+                "You are not allowed to use this bot",
+                reply_markup=build_request_access_keyboard(),
+            )
             return
         chat_cfg = {"enabled": True, "allowed_senders": "whitelist", "allowed_user_ids": []}
     else:

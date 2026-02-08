@@ -23,6 +23,22 @@ async def _is_chat_admin(message: Message) -> bool:
     return _is_admin_member(member)
 
 
+async def _is_query_admin(query: CallbackQuery) -> bool:
+    if not query.from_user or not query.message:
+        return False
+    member = await query.message.bot.get_chat_member(query.message.chat.id, query.from_user.id)
+    return _is_admin_member(member)
+
+
+async def create_chat_request(storage: Storage, chat_id: int, requested_by_id: int) -> int:
+    return await storage.create_request(
+        kind="chat",
+        user_id=None,
+        chat_id=chat_id,
+        requested_by_id=requested_by_id,
+    )
+
+
 async def _reply_private(message: Message, text: str) -> None:
     if message.chat.type == "private":
         await message.answer(text)
@@ -146,3 +162,18 @@ async def toggle_reply(query: CallbackQuery, storage: Storage) -> None:
     if updated:
         await query.message.edit_reply_markup(reply_markup=build_chat_settings_keyboard(updated))
     await query.answer("Updated")
+
+
+@router.callback_query(F.data == "menu:request_chat")
+async def request_chat_access(query: CallbackQuery, storage: Storage) -> None:
+    if not query.message or not query.from_user:
+        await query.answer("Invalid request", show_alert=True)
+        return
+    if query.message.chat.type == "private":
+        await query.answer("Use this in a group chat", show_alert=True)
+        return
+    if not await _is_query_admin(query):
+        await query.answer("Admins only", show_alert=True)
+        return
+    await create_chat_request(storage, query.message.chat.id, query.from_user.id)
+    await query.answer("Chat access request sent")

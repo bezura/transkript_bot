@@ -41,3 +41,10 @@ def build_menu_keyboard(*, role: MenuRole, in_private: bool) -> InlineKeyboardMa
         builder.button(text="Admin", callback_data="menu:admin")
     builder.adjust(1)
     return builder.as_markup()
+
+
+def build_request_access_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Request access", callback_data="menu:request_user")
+    builder.adjust(1)
+    return builder.as_markup()
