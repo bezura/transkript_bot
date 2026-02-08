@@ -175,5 +175,10 @@ async def request_chat_access(query: CallbackQuery, storage: Storage) -> None:
     if not await _is_query_admin(query):
         await query.answer("Admins only", show_alert=True)
         return
+    await storage.upsert_chat(
+        chat_id=query.message.chat.id,
+        title=query.message.chat.title,
+        type_=query.message.chat.type,
+    )
     await create_chat_request(storage, query.message.chat.id, query.from_user.id)
     await query.answer("Chat access request sent")

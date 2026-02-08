@@ -48,3 +48,29 @@ def build_request_access_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="Request access", callback_data="menu:request_user")
     builder.adjust(1)
     return builder.as_markup()
+
+
+def build_admin_menu_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="User requests", callback_data="admin:reqs:user")
+    builder.button(text="Chat requests", callback_data="admin:reqs:chat")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def build_requests_list_keyboard(*, kind: str, requests: list[dict]) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for req in requests:
+        target = req.get("user_id") if kind == "user" else req.get("chat_id")
+        label = f"{kind} {target}"
+        builder.button(
+            text=f"Approve {label}",
+            callback_data=f"admin:req:{kind}:approve:{req['id']}",
+        )
+        builder.button(
+            text=f"Deny {label}",
+            callback_data=f"admin:req:{kind}:deny:{req['id']}",
+        )
+    builder.button(text="Back", callback_data="admin:menu")
+    builder.adjust(1)
+    return builder.as_markup()
