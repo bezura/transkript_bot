@@ -1,0 +1,42 @@
+services:
+  telegram-bot-api:
+    image: divideprojects/docker-telegram-bot-api:8.3-3e9db0d
+    restart: unless-stopped
+    environment:
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
+      TELEGRAM_LOCAL: "true"
+    volumes:
+      - tg-bot-api-data:/var/lib/telegram-bot-api
+    ports:
+      - "127.0.0.1:8081:8081"
+
+  bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - telegram-bot-api
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      BOT_API_BASE_URL: http://telegram-bot-api:8081
+      ROOT_ADMIN_IDS: "${ROOT_ADMIN_IDS}"
+      HF_TOKEN: ${HF_TOKEN:-}
+      STORAGE_PATH: /app/data/bot.db
+      MEDIA_DIR: /app/data/media
+      IDLE_SHUTDOWN_MINUTES: ${IDLE_SHUTDOWN_MINUTES:-5}
+      DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-auto}
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      BACKEND_FORCE: ${BACKEND_FORCE:-}
+      WHISPERX_CMD: ${WHISPERX_CMD:-whisperx}
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-2}
+      MKL_NUM_THREADS: ${MKL_NUM_THREADS:-2}
+    cpus: ${BOT_CPUS:-4}
+    mem_limit: ${BOT_MEM_LIMIT:-5g}
+    mem_reservation: ${BOT_MEM_RESERVATION:-3g}
+    volumes:
+      - bot-data:/app/data
+      - tg-bot-api-data:/var/lib/telegram-bot-api:ro
+
+volumes:
+  tg-bot-api-data:
+  bot-data:

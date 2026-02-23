@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     media_dir: str = "./data/media"
     idle_shutdown_minutes: int = 5
     default_language: str = "auto"
+    whisper_model: str = "small"
     allowed_senders_default: str = "whitelist"
     backend_force: str | None = None
     whisperx_cmd: str = "whisperx"

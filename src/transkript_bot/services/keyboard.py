@@ -82,3 +82,13 @@ def build_requests_list_keyboard(*, kind: str, requests: list[dict]) -> InlineKe
     builder.button(text="Back", callback_data="admin:menu")
     builder.adjust(1)
     return builder.as_markup()
+
+
+def build_result_files_keyboard(*, job_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="TXT", callback_data=f"job:file:{job_id}:txt")
+    builder.button(text="MD", callback_data=f"job:file:{job_id}:md")
+    builder.button(text="JSON", callback_data=f"job:file:{job_id}:json")
+    builder.button(text="All", callback_data=f"job:file:{job_id}:all")
+    builder.adjust(2, 2)
+    return builder.as_markup()

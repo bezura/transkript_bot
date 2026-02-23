@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import Any
 
@@ -17,6 +18,8 @@ from .storage.db import Storage, init_db
 from .transcription.backend import choose_backend
 from .worker import worker_loop
 
+logger = logging.getLogger(__name__)
+
 
 async def create_app() -> tuple[Bot, Dispatcher]:
     settings = Settings()
@@ -29,10 +32,18 @@ async def create_app() -> tuple[Bot, Dispatcher]:
     app_state: dict[str, Any] = {
         "admin_mode": set(),
         "last_activity": time.time(),
+        "worker_busy": False,
     }
 
     system_info = get_system_info()
     backend = choose_backend(force=settings.backend_force, has_gpu=system_info.get("has_gpu", False))
+    logger.info(
+        "App init: backend=%s media_dir=%s storage=%s idle_shutdown=%smin",
+        backend,
+        settings.media_dir,
+        settings.storage_path,
+        settings.idle_shutdown_minutes,
+    )
 
     api_server = build_api_server(settings)
     session = AiohttpSession(api=api_server)
@@ -52,8 +63,12 @@ async def create_app() -> tuple[Bot, Dispatcher]:
     dp.include_router(media.router)
 
     async def on_startup(bot: Bot, dispatcher: Dispatcher, **_: Any) -> None:
+        logger.info("Startup: registering command scopes")
         for _, (scope, commands) in build_command_scopes(root_admin_ids=settings.root_admin_ids).items():
-            await bot.set_my_commands(commands, scope=scope)
+            try:
+                await bot.set_my_commands(commands, scope=scope)
+            except Exception as exc:
+                logger.warning("Failed to set command scope %r: %s", scope, exc)
         for admin_id in settings.root_admin_ids:
             try:
                 await bot.send_message(admin_id, format_startup_info(system_info))
@@ -65,6 +80,7 @@ async def create_app() -> tuple[Bot, Dispatcher]:
         dispatcher["idle_task"] = asyncio.create_task(
             idle_shutdown_loop(queue, app_state, settings.idle_shutdown_minutes * 60)
         )
+        logger.info("Startup complete: worker and idle tasks launched")
 
     async def on_shutdown(dispatcher: Dispatcher, **_: Any) -> None:
         for key in ("worker_task", "idle_task"):

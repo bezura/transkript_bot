@@ -271,6 +271,20 @@ class Storage:
             await db.execute(sql, values)
             await db.commit()
 
+    async def get_job(self, job_id: int) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """
+                SELECT id, chat_id, user_id, status, output_paths
+                FROM jobs
+                WHERE id = ?
+                """,
+                (job_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            return dict(row) if row else None
+
     async def get_recent_durations(self, limit: int = 10) -> list[int]:
         durations: list[int] = []
         async with aiosqlite.connect(self.db_path) as db:

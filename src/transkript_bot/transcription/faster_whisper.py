@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 
 def normalize_segments(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -19,13 +19,27 @@ def run_faster_whisper(
     language: str,
     device: str,
     compute_type: str,
+    on_progress: Callable[[int], None] | None = None,
 ) -> list[dict[str, Any]]:
     from faster_whisper import WhisperModel
 
     model = WhisperModel(model_size, device=device, compute_type=compute_type)
-    segments, _info = model.transcribe(wav_path, language=None if language == "auto" else language)
-    result = [
-        {"start": seg.start, "end": seg.end, "text": seg.text}
-        for seg in segments
-    ]
+    segments, info = model.transcribe(
+        wav_path,
+        language=None if language == "auto" else language,
+        beam_size=1,
+        best_of=1,
+        condition_on_previous_text=False,
+        vad_filter=True,
+    )
+    duration = float(getattr(info, "duration", 0.0) or 0.0)
+    last_progress = -1
+    result: list[dict[str, Any]] = []
+    for seg in segments:
+        result.append({"start": seg.start, "end": seg.end, "text": seg.text})
+        if on_progress and duration > 0:
+            current = max(1, min(99, int((float(seg.end) / duration) * 100)))
+            if current > last_progress:
+                last_progress = current
+                on_progress(current)
     return normalize_segments(result)
