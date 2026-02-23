@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, FSInputFile, Message
 from aiogram.types.chat_member_administrator import ChatMemberAdministrator
 from aiogram.types.chat_member_owner import ChatMemberOwner
@@ -155,11 +156,19 @@ async def send_result_file(query: CallbackQuery, storage: Storage, app_state: di
         path = output_paths.get(kind)
         if not path or not Path(path).is_file():
             continue
-        sent_message = await query.bot.send_document(
-            chat_id=query.message.chat.id,
-            document=FSInputFile(path),
-            message_thread_id=query.message.message_thread_id,
-        )
+        try:
+            sent_message = await query.bot.send_document(
+                chat_id=query.message.chat.id,
+                document=FSInputFile(path),
+                message_thread_id=query.message.message_thread_id,
+            )
+        except TelegramBadRequest as exc:
+            if "message thread not found" not in str(exc).lower():
+                raise
+            sent_message = await query.bot.send_document(
+                chat_id=query.message.chat.id,
+                document=FSInputFile(path),
+            )
         new_message_ids.append(sent_message.message_id)
         sent += 1
 
